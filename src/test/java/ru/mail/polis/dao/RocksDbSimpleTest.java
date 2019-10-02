@@ -26,8 +26,8 @@ public class RocksDbSimpleTest {
     public void putGetSimpleTest(@TempDir File data) throws IOException {
         DAO dao = DAOFactory.create(data);
         Pair<String, String> one = new Pair<>("aaaabbbbccccdddd", "dasdadasdsadsadsadasdasdsasdnaskdsadaxx");
-        Pair<String, String> two = new Pair<>("ccccbbbccccdddd", "ssdsadsdnasdsdsasadkdsada");
-        Pair<String, String> three = new Pair<>("bbbbccccddddaaaa", "sdnassdsakdsadsdadasdasdsdasdasdasdaa");
+        Pair<String, String> two = new Pair<>("bbbbaaaaccccdddd", "ssdsadsdnasdsdsasadkdsada");
+        Pair<String, String> three = new Pair<>("ccccbbbbddddaaaa", "sdnassdsakdsadsdadasdasdsdasdasdasdaa");
 //        List<Pair> pairs = new ArrayList<>(Arrays.asList(one,  three));
         List<Pair> pairs = new ArrayList<>(Arrays.asList(one, two, three));
         final NavigableMap<ByteBuffer, ByteBuffer> map = new TreeMap<>();
