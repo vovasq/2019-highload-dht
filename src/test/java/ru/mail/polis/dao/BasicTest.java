@@ -131,6 +131,7 @@ class BasicTest extends TestBase {
             final Iterator<Map.Entry<ByteBuffer, ByteBuffer>> expectedIter =
                     map.tailMap(middle).entrySet().iterator();
             final Iterator<Record> actualIter = dao.iterator(middle);
+            assertEquals(expectedIter.next().getKey(), actualIter.next().getKey());
             while (expectedIter.hasNext()) {
                 final Map.Entry<ByteBuffer, ByteBuffer> expected = expectedIter.next();
                 final Record actual = actualIter.next();
