@@ -17,8 +17,6 @@
 package ru.mail.polis.dao;
 
 import org.jetbrains.annotations.NotNull;
-import org.rocksdb.RocksDBException;
-import ru.mail.polis.dao.adapter.RocksDbAdapter;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,7 +40,7 @@ public final class DAOFactory {
      * @return a storage instance
      */
     @NotNull
-    public static DAO create(@NotNull final File data) throws IOException{
+    public static DAO create(@NotNull final File data) throws IOException {
         if (Runtime.getRuntime().maxMemory() > MAX_HEAP) {
             throw new IllegalStateException("The heap is too big. Consider setting Xmx.");
         }
@@ -54,13 +52,6 @@ public final class DAOFactory {
         if (!data.isDirectory()) {
             throw new IllegalArgumentException("Path is not a directory: " + data);
         }
-
-        try {
-            return new SimpleDaoImpl(new RocksDbAdapter(data));
-        } catch (RocksDBException e) {
-            e.printStackTrace();
-            throw new IOException(e.getMessage());
-        }
-
+        return new RocksDaoImpl(data);
     }
 }
