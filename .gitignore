@@ -12,5 +12,8 @@
 !.travis.yml
 !settings.gradle
 !*.lua
+!gradle/wrapper/gradle-wrapper.properties
+!gradle/wrapper/gradle-wrapper.jar
+
 # ...even if they are in subdirectories
 !*/
