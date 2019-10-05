@@ -37,36 +37,26 @@ public class ServiceImpl extends HttpServer implements Service {
         if (id == null || id.isEmpty()) return new Response(Response.BAD_REQUEST, Response.EMPTY);
 
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-//                System.out.println("get with id = " + id);
-                try {
-                    ByteBuffer value = dao.get(key);
-                    return new Response(Response.OK, fromByteBufferToByteArray(value));
-                } catch (NoSuchElementException e) {
-                    return new Response(Response.NOT_FOUND, "No such a key".getBytes(Charsets.UTF_8));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
-                }
-            case Request.METHOD_PUT:
-                System.out.println("put with id = " + id);
-                System.out.println("delete with id = " + id);
-                try {
+        try {
+            switch (request.getMethod()) {
+                case Request.METHOD_GET:
+                    try {
+                        ByteBuffer value = dao.get(key);
+                        return new Response(Response.OK, fromByteBufferToByteArray(value));
+                    } catch (NoSuchElementException e) {
+                        return new Response(Response.NOT_FOUND, "No such a key".getBytes(Charsets.UTF_8));
+                    }
+                case Request.METHOD_PUT:
                     dao.upsert(key, ByteBuffer.wrap(request.getBody()));
                     return new Response(Response.CREATED, Response.EMPTY);
-                } catch (IOException e) {
-                    return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
-                }
-            case Request.METHOD_DELETE:
-                try {
+                case Request.METHOD_DELETE:
                     dao.remove(key);
                     return new Response(Response.ACCEPTED, Response.EMPTY);
-                } catch (IOException e) {
-                    return new Response(Response.NOT_FOUND, Response.EMPTY);
-                }
-            default:
-                return new Response(Response.BAD_REQUEST, Response.EMPTY);
+                default:
+                    return new Response(Response.BAD_REQUEST, Response.EMPTY);
+            }
+        } catch (IOException e) {
+            return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
         }
     }
 
@@ -74,7 +64,6 @@ public class ServiceImpl extends HttpServer implements Service {
     public void handleDefault(Request request, HttpSession session) throws IOException {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
-
 
     @Override
     public void start() {

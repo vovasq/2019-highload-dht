@@ -18,18 +18,17 @@ public class RocksDaoImpl implements DAO {
     private RocksDB db;
 
 
-    RocksDaoImpl(@NotNull File data) {
+    RocksDaoImpl(@NotNull File data) throws IOException{
         RocksDB.loadLibrary();
         // the Options class contains a set of configurable DB options
         // that determines the behaviour of the database.
         try {
-
             final Options options = new Options()
                     .setCreateIfMissing(true)
                     .setComparator(new BytewiseComparator(new ComparatorOptions()));
             db = RocksDB.open(options, data.getPath());
         } catch (RocksDBException e) {
-            System.out.println(e);
+            throw new CustomDaoException(e.getMessage(), e);
         }
     }
 
@@ -39,8 +38,6 @@ public class RocksDaoImpl implements DAO {
         final byte[] arrayFrom = fromByteBufferToByteArray(from);
         RocksIterator rocksIterator = db.newIterator();
         rocksIterator.seek(arrayFrom);
-        if (Arrays.equals(rocksIterator.key(), arrayFrom))
-            System.out.println("yes seek");
         return new RocksDbToRecordIterator(rocksIterator);
     }
 
@@ -51,7 +48,7 @@ public class RocksDaoImpl implements DAO {
         try {
             db.put(arrayKey, arrayValue);
         } catch (RocksDBException e) {
-            throw new IOException(e.getMessage());
+            throw new CustomDaoException(e.getMessage(), e);
         }
     }
 
@@ -61,12 +58,12 @@ public class RocksDaoImpl implements DAO {
         try {
             db.delete(arrayKey);
         } catch (RocksDBException e) {
-            throw new IOException(e.getMessage());
+            throw new CustomDaoException(e.getMessage(), e);
         }
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         db.close();
     }
 
@@ -77,11 +74,11 @@ public class RocksDaoImpl implements DAO {
         try {
             final byte[] valueByteArray = db.get(keyArray);
             if (valueByteArray == null) {
-                throw new NoSuchElementException("Key not found " + key.toString());
+                throw new CustomNoSuchElementException("Key not found " + key.toString());
             }
             return ByteBuffer.wrap(valueByteArray);
-        } catch (RocksDBException exception) {
-            throw new IOException("Error while get", exception);
+        } catch (RocksDBException e) {
+             throw new CustomDaoException(e.getMessage(), e);
         }
     }
 
@@ -90,7 +87,7 @@ public class RocksDaoImpl implements DAO {
         try {
             db.compactRange();
         } catch (RocksDBException exception) {
-            throw new IOException("Compact error", exception);
+            throw new CustomDaoException("Compact error", exception);
         }
     }
 
