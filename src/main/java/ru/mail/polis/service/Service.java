@@ -19,8 +19,7 @@ package ru.mail.polis.service;
 /**
  * A persistent storage with HTTP API.
  *
- * <p>
- * The following HTTP protocol is supported:
+ * <p>The following HTTP protocol is supported:
  * <ul>
  * <li>{@code GET /v0/status} --
  * returns {@code 200} or {@code 503}</li>
@@ -32,11 +31,9 @@ package ru.mail.polis.service;
  * remove data by {@code ID}. Returns {@code 202}.</li>
  * </ul>
  *
- * <p>
- * {@code ID} is a non empty char sequence.
+ * <p>{@code ID} is a non empty char sequence.
  *
- * <p>
- * In all the cases the storage may return:
+ * <p>In all the cases the storage may return:
  * <ul>
  * <li>{@code 4xx} for malformed requests</li>
  * <li>{@code 5xx} for internal errors</li>
@@ -48,16 +45,14 @@ public interface Service {
     /**
      * Bind storage to HTTP port and start listening.
      *
-     * <p>
-     * May be called only once.
+     * <p>May be called only once.
      */
     void start();
 
     /**
      * Stop listening and free all the resources.
      *
-     * <p>
-     * May be called only once and after {@link #start()}.
+     * <p>May be called only once and after {@link #start()}.
      */
     void stop();
 }
