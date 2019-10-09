@@ -87,7 +87,7 @@ public class RocksDaoImpl implements DAO {
         try {
             db.compactRange();
         } catch (RocksDBException exception) {
-            throw new CustomDaoException("Compact error", exception);
+            throw new CustomDaoException("Compact errxcor", exception);
         }
     }
 
