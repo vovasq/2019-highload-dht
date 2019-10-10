@@ -24,14 +24,14 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     @Path("/v0/status")
-    public Response status(
+    public synchronized Response status(
             @Param("id") String id,
             Request request) {
         return new Response(Response.OK, Response.EMPTY);
     }
 
     @Path("/v0/entity")
-    public Response entity(
+    public synchronized Response entity(
             @Param("id") String id,
             Request request) {
         if (id == null || id.isEmpty()) return new Response(Response.BAD_REQUEST, Response.EMPTY);
@@ -61,17 +61,17 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     @Override
-    public void handleDefault(Request request, HttpSession session) throws IOException {
+    public synchronized void handleDefault(Request request, HttpSession session) throws IOException {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
     @Override
-    public void start() {
+    public synchronized  void start() {
         super.start();
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
         super.stop();
     }
 
