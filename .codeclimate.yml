@@ -25,6 +25,8 @@ plugins:
     checks:
       AvoidThrowingRawExceptionTypes:
         enabled: false 
+      DataClass:
+        enabled: false
   sonar-java:
     enabled: true
     config:
