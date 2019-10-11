@@ -1,14 +1,17 @@
 package ru.mail.polis.dao;
 
 import org.jetbrains.annotations.NotNull;
-import org.rocksdb.*;
+import org.rocksdb.ComparatorOptions;
+import org.rocksdb.Options;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
 import org.rocksdb.util.BytewiseComparator;
 import ru.mail.polis.Record;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -18,7 +21,7 @@ public class RocksDaoImpl implements DAO {
     private RocksDB db;
 
 
-    RocksDaoImpl(@NotNull File data) throws IOException{
+    RocksDaoImpl(@NotNull final File data) throws IOException {
         RocksDB.loadLibrary();
         // the Options class contains a set of configurable DB options
         // that determines the behaviour of the database.
@@ -34,15 +37,15 @@ public class RocksDaoImpl implements DAO {
 
     @NotNull
     @Override
-    public Iterator<Record> iterator(@NotNull ByteBuffer from) throws IOException {
+    public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
         final byte[] arrayFrom = fromByteBufferToByteArray(from);
-        RocksIterator rocksIterator = db.newIterator();
+        final RocksIterator rocksIterator = db.newIterator();
         rocksIterator.seek(arrayFrom);
         return new RocksDbToRecordIterator(rocksIterator);
     }
 
     @Override
-    public void upsert(@NotNull ByteBuffer key, @NotNull ByteBuffer value) throws IOException {
+    public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws IOException {
         final byte[] arrayKey = fromByteBufferToByteArray(key);
         final byte[] arrayValue = fromByteBufferToByteArray(value);
         try {
@@ -53,7 +56,7 @@ public class RocksDaoImpl implements DAO {
     }
 
     @Override
-    public void remove(@NotNull ByteBuffer key) throws IOException {
+    public void remove(@NotNull final ByteBuffer key) throws IOException {
         final byte[] arrayKey = fromByteBufferToByteArray(key);
         try {
             db.delete(arrayKey);
@@ -69,7 +72,7 @@ public class RocksDaoImpl implements DAO {
 
     @NotNull
     @Override
-    public ByteBuffer get(@NotNull ByteBuffer key) throws IOException, NoSuchElementException {
+    public ByteBuffer get(@NotNull final ByteBuffer key) throws IOException, NoSuchElementException {
         final byte[] keyArray = fromByteBufferToByteArray(key);
         try {
             final byte[] valueByteArray = db.get(keyArray);
@@ -78,7 +81,7 @@ public class RocksDaoImpl implements DAO {
             }
             return ByteBuffer.wrap(valueByteArray);
         } catch (RocksDBException e) {
-             throw new CustomDaoException(e.getMessage(), e);
+            throw new CustomDaoException(e.getMessage(), e);
         }
     }
 
@@ -96,13 +99,14 @@ public class RocksDaoImpl implements DAO {
         private Record next;
         private RocksIterator currentRocksIter;
 
-        RocksDbToRecordIterator(RocksIterator rocksIterator) {
+        RocksDbToRecordIterator(final RocksIterator rocksIterator) {
             currentRocksIter = rocksIterator;
             if (rocksIterator.isValid()) {
                 next = Record.of(ByteBuffer.wrap(currentRocksIter.key()),
                         ByteBuffer.wrap(currentRocksIter.value()));
-            } else
+            } else {
                 next = null;
+            }
         }
 
         @Override

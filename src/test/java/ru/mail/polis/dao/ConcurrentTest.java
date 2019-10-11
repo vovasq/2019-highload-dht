@@ -56,7 +56,8 @@ class ConcurrentTest extends TestBase {
 
     @Test
     void tenReaderWriterManyRecords(@TempDir File data) throws IOException, InterruptedException {
-        concurrentReadWrite(10, 1_000_000,  data);
+//        concurrentReadWrite(10, 1_000_000,  data);
+        concurrentReadWrite(10, 1_000,  data);
     }
 
     private void concurrentWrites(int threadsCount,

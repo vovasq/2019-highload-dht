@@ -4,7 +4,7 @@ import java.util.NoSuchElementException;
 
 public class CustomNoSuchElementException extends NoSuchElementException {
 
-    CustomNoSuchElementException(String s) {
+    CustomNoSuchElementException(final String s) {
         super(s);
     }
 
