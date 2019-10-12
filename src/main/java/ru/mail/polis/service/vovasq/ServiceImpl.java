@@ -38,9 +38,13 @@ public class ServiceImpl extends HttpServer implements Service {
         return new Response(Response.OK, Response.EMPTY);
     }
 
-    /*
+
+    /**
      * simple REST API to DAO according to README.md
-     * */
+     * @param id key for dao
+     * @param request http request
+     * @return response entity
+     */
     @Path("/v0/entity")
     public Response entity(
             @Param("id") final String id,

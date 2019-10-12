@@ -9,11 +9,12 @@ public final class Util {
     private Util() {
     }
 
-    /*
-     *  function convert from ByteBuffer to byte array
+    /**
+     * function convert from ByteBuffer to byte array.
+     * @param buffer argument to convert
+     * @return byte array
      */
-
-    public static byte[] fromByteBufferToByteArray(@NotNull ByteBuffer buffer) {
+    public static byte[] fromByteBufferToByteArray(@NotNull final ByteBuffer buffer) {
         final ByteBuffer duplicate = buffer.duplicate();
         final byte[] array = new byte[duplicate.remaining()];
         duplicate.get(array);
