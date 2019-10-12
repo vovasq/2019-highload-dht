@@ -9,9 +9,6 @@ import ru.mail.polis.service.Service;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static ru.mail.polis.util.Util.fromByteBufferToByteArray;
 
@@ -25,10 +22,13 @@ public class ServiceImpl extends HttpServer implements Service {
         this.dao = dao;
     }
 
+    /*
+    * end point for lifecheck
+    * */
     @Path("/v0/status")
     public Response status(
-            @Param("id") String id,
-            Request request) {
+            @Param("id") final String id,
+            final Request request) {
         return new Response(Response.OK, Response.EMPTY);
     }
 
@@ -62,17 +62,8 @@ public class ServiceImpl extends HttpServer implements Service {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
-    @Override
-    public void start() {
-        super.start();
-    }
 
-    @Override
-    public void stop() {
-        super.stop();
-    }
-
-    private Response get(final ByteBuffer key) throws IOException{
+    private Response get(final ByteBuffer key) throws IOException {
         Response response;
         try {
             final ByteBuffer value = dao.get(key);
@@ -83,12 +74,12 @@ public class ServiceImpl extends HttpServer implements Service {
         return response;
     }
 
-    private Response remove(final ByteBuffer key) throws IOException{
+    private Response remove(final ByteBuffer key) throws IOException {
         dao.remove(key);
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
-    private Response upsert(final ByteBuffer key, final byte [] body) throws IOException{
+    private Response upsert(final ByteBuffer key, final byte[] body) throws IOException {
         dao.upsert(key, ByteBuffer.wrap(body));
         return new Response(Response.CREATED, Response.EMPTY);
     }

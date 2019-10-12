@@ -97,7 +97,7 @@ public class RocksDaoImpl implements DAO {
     private static class RocksDbToRecordIterator implements Iterator<Record> {
 
         private Record next;
-        private RocksIterator currentRocksIter;
+        private final RocksIterator currentRocksIter;
 
         RocksDbToRecordIterator(final RocksIterator rocksIterator) {
             currentRocksIter = rocksIterator;
