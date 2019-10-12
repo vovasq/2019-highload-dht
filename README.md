@@ -65,7 +65,7 @@ $ gradle run
 ### Report
 Когда всё будет готово, присылайте pull request со своей реализацией и оптимизациями на review.
 
-## Этап 3. Асинхронный сервер (deadline 2019-10-18)
+## Этап 3. Асинхронный сервер (deadline 2019-10-19)
 
 Реализуйте асинхронный HTTP сервер на основе [one-nio](https://github.com/odnoklassniki/one-nio).
 
