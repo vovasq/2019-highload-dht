@@ -1,12 +1,11 @@
 package ru.mail.polis.dao;
 
 import org.jetbrains.annotations.NotNull;
-import org.rocksdb.ComparatorOptions;
+import org.rocksdb.BuiltinComparator;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
-import org.rocksdb.util.BytewiseComparator;
 import ru.mail.polis.Record;
 
 import java.io.File;
@@ -28,7 +27,7 @@ public class RocksDaoImpl implements DAO {
         try {
             final Options options = new Options()
                     .setCreateIfMissing(true)
-                    .setComparator(new BytewiseComparator(new ComparatorOptions()));
+                    .setComparator(BuiltinComparator.BYTEWISE_COMPARATOR);
             db = RocksDB.open(options, data.getPath());
         } catch (RocksDBException e) {
             throw new CustomDaoException(e.getMessage(), e);
@@ -38,7 +37,7 @@ public class RocksDaoImpl implements DAO {
     @NotNull
     @Override
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
-        final byte[] arrayFrom = fromByteBufferToByteArray(from);
+        final byte[] arrayFrom = getKeyByteBuffer(from);
         final RocksIterator rocksIterator = db.newIterator();
         rocksIterator.seek(arrayFrom);
         return new RocksDbToRecordIterator(rocksIterator);
@@ -46,7 +45,7 @@ public class RocksDaoImpl implements DAO {
 
     @Override
     public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws IOException {
-        final byte[] arrayKey = fromByteBufferToByteArray(key);
+        final byte[] arrayKey = getKeyByteBuffer(key);
         final byte[] arrayValue = fromByteBufferToByteArray(value);
         try {
             db.put(arrayKey, arrayValue);
@@ -57,7 +56,7 @@ public class RocksDaoImpl implements DAO {
 
     @Override
     public void remove(@NotNull final ByteBuffer key) throws IOException {
-        final byte[] arrayKey = fromByteBufferToByteArray(key);
+        final byte[] arrayKey = getKeyByteBuffer(key);
         try {
             db.delete(arrayKey);
         } catch (RocksDBException e) {
@@ -73,7 +72,7 @@ public class RocksDaoImpl implements DAO {
     @NotNull
     @Override
     public ByteBuffer get(@NotNull final ByteBuffer key) throws IOException, NoSuchElementException {
-        final byte[] keyArray = fromByteBufferToByteArray(key);
+        final byte[] keyArray = getKeyByteBuffer(key);
         try {
             final byte[] valueByteArray = db.get(keyArray);
             if (valueByteArray == null) {
@@ -94,40 +93,48 @@ public class RocksDaoImpl implements DAO {
         }
     }
 
+    private byte[] getKeyByteBuffer(@NotNull final ByteBuffer byteBuffer) {
+        synchronized (this) {
+            final byte[] array = fromByteBufferToByteArray(byteBuffer);
+            for (int i = 0; i < array.length; i++) {
+                array[i] -= Byte.MIN_VALUE;
+            }
+            return array;
+        }
+    }
+
     private static class RocksDbToRecordIterator implements Iterator<Record> {
 
-        private Record next;
         private final RocksIterator currentRocksIter;
 
         RocksDbToRecordIterator(final RocksIterator rocksIterator) {
             currentRocksIter = rocksIterator;
-            if (rocksIterator.isValid()) {
-                next = Record.of(ByteBuffer.wrap(currentRocksIter.key()),
-                        ByteBuffer.wrap(currentRocksIter.value()));
-            } else {
-                next = null;
-            }
         }
 
         @Override
         public boolean hasNext() {
-            return currentRocksIter.isValid() || next != null;
+            return currentRocksIter.isValid();
         }
 
         @Override
         public Record next() {
-            final Record res = next;
             if (currentRocksIter.isValid()) {
+                final ByteBuffer key = getKeyByteBuffer(currentRocksIter.key());
+                final ByteBuffer value = ByteBuffer.wrap(currentRocksIter.value());
+                final Record res = Record.of(key, value);
                 currentRocksIter.next();
-                if (currentRocksIter.isValid()) {
-                    final ByteBuffer key = ByteBuffer.wrap(currentRocksIter.key());
-                    final ByteBuffer value = ByteBuffer.wrap(currentRocksIter.value());
-                    next = Record.of(key, value);
-                } else next = null;
+                return res;
             } else {
-                next = null;
+                throw new IllegalStateException("No next found");
             }
-            return res;
+        }
+
+        private ByteBuffer getKeyByteBuffer(@NotNull final byte[] array) {
+            final byte[] bytes = array.clone();
+            for (int i = 0; i < bytes.length; i++) {
+                bytes[i] += Byte.MIN_VALUE;
+            }
+            return ByteBuffer.wrap(bytes);
         }
     }
 }
