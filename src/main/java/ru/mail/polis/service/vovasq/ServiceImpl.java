@@ -19,10 +19,6 @@ public class ServiceImpl extends HttpServer implements Service {
 
 
     private final DAO dao;
-    private final static ReadWriteLock LOCK=new ReentrantReadWriteLock();
-    private final static Lock readLock = LOCK.readLock();
-    private final static Lock writeLock = LOCK.writeLock();
-
 
     public ServiceImpl(final int port, final DAO dao) throws IOException {
         super(getConfig(port));
@@ -44,32 +40,21 @@ public class ServiceImpl extends HttpServer implements Service {
             @Param("id") final String id,
             final Request request) {
         if (id == null || id.isEmpty()) return new Response(Response.BAD_REQUEST, Response.EMPTY);
-        Response response;
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
         try {
-            writeLock.lock();
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
-                    response = getFromDao(key);
-                    break;
+                    return get(key);
                 case Request.METHOD_PUT:
-                    dao.upsert(key, ByteBuffer.wrap(request.getBody()));
-                    response = new Response(Response.CREATED, Response.EMPTY);
-                    break;
+                    return upsert(key, request.getBody());
                 case Request.METHOD_DELETE:
-                    dao.remove(key);
-                    response = new Response(Response.ACCEPTED, Response.EMPTY);
-                    break;
+                    return remove(key);
                 default:
-                    response =  new Response(Response.BAD_REQUEST, Response.EMPTY);
-                    break;
+                    return new Response(Response.BAD_REQUEST, Response.EMPTY);
             }
         } catch (IOException e) {
-            response =  new Response(Response.INTERNAL_ERROR, Response.EMPTY);
-        } finally {
-            writeLock.unlock();
+            return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
         }
-        return response;
     }
 
     @Override
@@ -87,7 +72,7 @@ public class ServiceImpl extends HttpServer implements Service {
         super.stop();
     }
 
-    private Response getFromDao(final ByteBuffer key) throws IOException{
+    private Response get(final ByteBuffer key) throws IOException{
         Response response;
         try {
             final ByteBuffer value = dao.get(key);
@@ -96,6 +81,16 @@ public class ServiceImpl extends HttpServer implements Service {
             response = new Response(Response.NOT_FOUND, "No such a key".getBytes(Charsets.UTF_8));
         }
         return response;
+    }
+
+    private Response remove(final ByteBuffer key) throws IOException{
+        dao.remove(key);
+        return new Response(Response.ACCEPTED, Response.EMPTY);
+    }
+
+    private Response upsert(final ByteBuffer key, final byte [] body) throws IOException{
+        dao.upsert(key, ByteBuffer.wrap(body));
+        return new Response(Response.CREATED, Response.EMPTY);
     }
 
     private static HttpServerConfig getConfig(final int port) {
