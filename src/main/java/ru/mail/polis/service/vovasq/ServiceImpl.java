@@ -28,9 +28,11 @@ public class ServiceImpl extends HttpServer implements Service {
         this.dao = dao;
     }
 
-    /*
-    * end point for lifecheck
-    * */
+    /**
+     * end point for lifecheck
+     *
+     * @return ok if can
+     */
     @Path("/v0/status")
     public Response status(
             @Param("id") final String id,
@@ -38,10 +40,10 @@ public class ServiceImpl extends HttpServer implements Service {
         return new Response(Response.OK, Response.EMPTY);
     }
 
-
     /**
      * simple REST API to DAO according to README.md
-     * @param id key for dao
+     *
+     * @param id      key for dao
      * @param request http request
      * @return response entity
      */
@@ -71,7 +73,6 @@ public class ServiceImpl extends HttpServer implements Service {
     public void handleDefault(final Request request, final HttpSession session) throws IOException {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
-
 
     private Response get(final ByteBuffer key) throws IOException {
         Response response;

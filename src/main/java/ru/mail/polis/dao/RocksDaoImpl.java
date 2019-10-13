@@ -19,7 +19,6 @@ import static ru.mail.polis.util.Util.fromByteBufferToByteArray;
 public class RocksDaoImpl implements DAO {
     private RocksDB db;
 
-
     RocksDaoImpl(@NotNull final File data) throws IOException {
         RocksDB.loadLibrary();
         // the Options class contains a set of configurable DB options

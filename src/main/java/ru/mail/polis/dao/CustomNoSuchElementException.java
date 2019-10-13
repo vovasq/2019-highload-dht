@@ -10,7 +10,7 @@ public class CustomNoSuchElementException extends NoSuchElementException {
 
     @Override
     public Throwable fillInStackTrace() {
-        synchronized (this){
+        synchronized (this) {
             return this;
         }
     }
