@@ -49,7 +49,7 @@ public final class Files {
                     recursiveDelete(data);
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                System.err.println("Can't delete temporary directory: " + data);
             }
         }));
         return data;
