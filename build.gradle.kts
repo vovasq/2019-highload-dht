@@ -56,6 +56,14 @@ application {
     applicationDefaultJvmArgs = listOf("-Xmx256m")
 }
 
+// Fail on warnings
+tasks.withType<JavaCompile> {
+    val compilerArgs = options.compilerArgs
+    compilerArgs.add("-Werror")
+    compilerArgs.add("-Xlint:all")
+}
+
+// Error prone options
 tasks.named<JavaCompile>("compileTestJava") {
     options.errorprone.isEnabled.set(false)
 }
