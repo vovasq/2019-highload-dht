@@ -59,4 +59,4 @@ checks:
       threshold: 10 # Have pattern-matching-like code
 exclude_patterns:
 - "**/*.svg"
-- "test/**/*.java"
+- "src/test/"
