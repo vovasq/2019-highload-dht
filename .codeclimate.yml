@@ -23,6 +23,8 @@ plugins:
         - "java-unnecessary"
         - "java-unusedcode"
     checks:
+      AvoidInstantiatingObjectsInLoops:
+        enabled: false
       AvoidSynchronizedAtMethodLevel:
         enabled: false
       AvoidThrowingRawExceptionTypes:
@@ -57,4 +59,4 @@ checks:
       threshold: 10 # Have pattern-matching-like code
 exclude_patterns:
 - "**/*.svg"
-#- "test/**/*.java"
+- "test/**/*.java"
