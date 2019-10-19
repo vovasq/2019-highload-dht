@@ -16,9 +16,9 @@ import static ru.mail.polis.util.Util.fromByteBufferToByteArray;
 
 public class StorageSession extends HttpSession {
 
-    private final static byte[] CRLF = "\r\n".getBytes(UTF_8);
-    private final static byte[] LF = "\n".getBytes(UTF_8);
-    private final static byte[] EMPTY_CHUNK = "0\r\n\r\n".getBytes(UTF_8);
+    private static final byte[] CRLF = "\r\n".getBytes(UTF_8);
+    private static final byte[] LF = "\n".getBytes(UTF_8);
+    private static final byte[] EMPTY_CHUNK = "0\r\n\r\n".getBytes(UTF_8);
 
     private Iterator<Record> records;
 
@@ -41,6 +41,7 @@ public class StorageSession extends HttpSession {
     }
 
     private void next() throws IOException {
+        byte[] chunk;
         while (records.hasNext() && queueHead == null) {
             final Record record = records.next();
             final byte[] key = fromByteBufferToByteArray(record.getKey());
@@ -51,7 +52,7 @@ public class StorageSession extends HttpSession {
             // <size>\r\n<payload>\r\n
             final int chunkLength = size.length() + 2 + payloadLength + 2;
 
-            final byte[] chunk = new byte[chunkLength];
+            chunk = new byte[chunkLength];
             final ByteBuffer buffer = ByteBuffer.wrap(chunk);
             buffer.put(size.getBytes(UTF_8));
             buffer.put(CRLF);

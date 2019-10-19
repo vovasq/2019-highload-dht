@@ -52,6 +52,8 @@ public final class ServiceFactory {
         if (port <= 0 || 65536 <= port) {
             throw new IllegalArgumentException("Port out of range");
         }
-        return new AsyncService(port, dao, Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors());
+        return new AsyncService(port, dao,
+                Runtime.getRuntime().availableProcessors(),
+                Runtime.getRuntime().availableProcessors());
     }
 }

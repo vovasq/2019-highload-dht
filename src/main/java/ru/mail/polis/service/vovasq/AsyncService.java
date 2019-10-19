@@ -28,7 +28,9 @@ public class AsyncService extends HttpServer implements Service {
 
     private final DAO dao;
 
-    public AsyncService(final int port, final DAO dao, final int minNumOfWorkers, final int maxNumOfWorkers) throws IOException {
+    public AsyncService(final int port, final DAO dao,
+                        final int minNumOfWorkers,
+                        final int maxNumOfWorkers) throws IOException {
         super(getConfig(port, minNumOfWorkers, maxNumOfWorkers));
         this.dao = dao;
     }
@@ -48,6 +50,7 @@ public class AsyncService extends HttpServer implements Service {
                 break;
             default:
                 session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+                break;
         }
     }
 
@@ -84,6 +87,7 @@ public class AsyncService extends HttpServer implements Service {
                         break;
                     default:
                         response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+                        break;
                 }
             } catch (IOException e) {
                 response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
@@ -91,7 +95,7 @@ public class AsyncService extends HttpServer implements Service {
             try {
                 session.sendResponse(response);
             } catch (IOException exc) {
-                exc.getMessage();
+                System.err.println(exc.getMessage());
             }
         });
     }
