@@ -21,6 +21,7 @@ import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
 
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.service.vovasq.AsyncService;
 import ru.mail.polis.service.vovasq.ServiceImpl;
 
 /**
@@ -53,7 +54,7 @@ public final class ServiceFactory {
         if (port <= 0 || 65536 <= port) {
             throw new IllegalArgumentException("Port out of range");
         }
-
-        return new ServiceImpl(port, dao);
+        return new AsyncService(port, dao,Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors());
+//        return new ServiceImpl(port, dao);
     }
 }

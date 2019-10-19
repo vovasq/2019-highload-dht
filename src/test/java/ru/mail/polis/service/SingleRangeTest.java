@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -63,7 +64,7 @@ class SingleRangeTest extends TestBase {
     private static byte[] chunkOf(
             @NotNull final String key,
             @NotNull final String value) {
-        return (key + '\n' + value).getBytes();
+        return (key + '\n' + value).getBytes(UTF_8);
     }
 
     @BeforeEach

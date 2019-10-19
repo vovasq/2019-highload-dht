@@ -13,6 +13,8 @@
 !settings.gradle
 !checkstyle.xml
 !.codeclimate.yml
-!experiments/task2/*
+!experiments/**
+
+
 # ...even if they are in subdirectories
 !*/
