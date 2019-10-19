@@ -4,10 +4,9 @@ import com.google.common.base.Charsets;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
-import one.nio.http.Param;
-import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import one.nio.server.RejectedSessionException;
 import org.jetbrains.annotations.NotNull;
@@ -16,7 +15,6 @@ import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
-import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -54,7 +52,7 @@ public class AsyncService extends HttpServer implements Service {
     }
 
     @Override
-    public HttpSession createSession(one.nio.net.Socket socket) throws RejectedSessionException {
+    public HttpSession createSession(final Socket socket) throws RejectedSessionException {
         return new StorageSession(socket, this);
     }
 
@@ -87,13 +85,13 @@ public class AsyncService extends HttpServer implements Service {
                     default:
                         response = new Response(Response.BAD_REQUEST, Response.EMPTY);
                 }
-            } catch (Exception e) {
+            } catch (IOException e) {
                 response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
             }
             try {
                 session.sendResponse(response);
             } catch (IOException exc) {
-                System.out.println(exc.getMessage());
+                exc.getMessage();
             }
         });
     }
@@ -116,7 +114,7 @@ public class AsyncService extends HttpServer implements Service {
             final Iterator<Record> records = dao.range(ByteBuffer.wrap(start.getBytes(UTF_8)),
                     end == null ? null : ByteBuffer.wrap(end.getBytes(UTF_8)));
             ((StorageSession) session).stream(records);
-        } catch (Exception e) {
+        } catch (IOException e) {
             session.sendError(Response.INTERNAL_ERROR, e.getMessage());
         }
 

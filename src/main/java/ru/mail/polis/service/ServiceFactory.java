@@ -16,13 +16,11 @@
 
 package ru.mail.polis.service;
 
-import java.io.IOException;
-
 import org.jetbrains.annotations.NotNull;
-
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.vovasq.AsyncService;
-import ru.mail.polis.service.vovasq.ServiceImpl;
+
+import java.io.IOException;
 
 /**
  * Constructs {@link Service} instances.
@@ -39,8 +37,8 @@ public final class ServiceFactory {
     /**
      * Construct a storage instance.
      *
-     * @param port     port to bind HTTP server to
-     * @param dao      DAO to store the data
+     * @param port port to bind HTTP server to
+     * @param dao  DAO to store the data
      * @return a storage instance
      */
     @NotNull
@@ -54,7 +52,6 @@ public final class ServiceFactory {
         if (port <= 0 || 65536 <= port) {
             throw new IllegalArgumentException("Port out of range");
         }
-        return new AsyncService(port, dao,Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors());
-//        return new ServiceImpl(port, dao);
+        return new AsyncService(port, dao, Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors());
     }
 }

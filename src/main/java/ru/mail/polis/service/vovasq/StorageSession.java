@@ -22,7 +22,7 @@ public class StorageSession extends HttpSession {
 
     private Iterator<Record> records;
 
-    public StorageSession(final Socket socket, HttpServer server) {
+    public StorageSession(final Socket socket, final HttpServer server) {
         super(socket, server);
     }
 
