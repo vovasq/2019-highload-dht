@@ -40,27 +40,31 @@ public class StorageSession extends HttpSession {
         next();
     }
 
-    private void next() throws IOException {
-        byte[] chunk;
-        while (records.hasNext() && queueHead == null) {
-            final Record record = records.next();
-            final byte[] key = fromByteBufferToByteArray(record.getKey());
-            final byte[] value = fromByteBufferToByteArray(record.getValue());
+    private byte[] buildChunk() {
+        final Record record = records.next();
+        final byte[] key = fromByteBufferToByteArray(record.getKey());
+        final byte[] value = fromByteBufferToByteArray(record.getValue());
 //            <key>'\n'<value>
-            final int payloadLength = key.length + 1 + value.length;
-            final String size = Integer.toHexString(payloadLength);
-            // <size>\r\n<payload>\r\n
-            final int chunkLength = size.length() + 2 + payloadLength + 2;
+        final int payloadLength = key.length + 1 + value.length;
+        final String size = Integer.toHexString(payloadLength);
+        // <size>\r\n<payload>\r\n
+        final int chunkLength = size.length() + 2 + payloadLength + 2;
+        final byte[] chunk = new byte[chunkLength];
+        final ByteBuffer buffer = ByteBuffer.wrap(chunk);
+        buffer.put(size.getBytes(UTF_8));
+        buffer.put(CRLF);
+        buffer.put(key);
+        buffer.put(LF);
+        buffer.put(value);
+        buffer.put(CRLF);
+        return chunk;
+    }
 
-            chunk = new byte[chunkLength];
-            final ByteBuffer buffer = ByteBuffer.wrap(chunk);
-            buffer.put(size.getBytes(UTF_8));
-            buffer.put(CRLF);
-            buffer.put(key);
-            buffer.put(LF);
-            buffer.put(value);
-            buffer.put(CRLF);
-            write(chunk, 0, chunkLength);
+    private void next() throws IOException {
+
+        while (records.hasNext() && queueHead == null) {
+            byte[] chunk = buildChunk();
+            write(chunk, 0, chunk.length);
         }
         if (!records.hasNext()) {
             write(EMPTY_CHUNK, 0, EMPTY_CHUNK.length);

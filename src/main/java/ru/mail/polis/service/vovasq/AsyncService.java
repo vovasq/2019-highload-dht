@@ -9,6 +9,8 @@ import one.nio.http.Response;
 import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import one.nio.server.RejectedSessionException;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
@@ -27,6 +29,8 @@ public class AsyncService extends HttpServer implements Service {
 
 
     private final DAO dao;
+    private static final Log log = LogFactory.getLog(AsyncService.class);
+
 
     public AsyncService(final int port, final DAO dao,
                         final int minNumOfWorkers,
@@ -95,7 +99,7 @@ public class AsyncService extends HttpServer implements Service {
             try {
                 session.sendResponse(response);
             } catch (IOException exc) {
-                System.err.println(exc.getMessage());
+                log.error("Error caused by: {}", exc);
             }
         });
     }
