@@ -63,7 +63,7 @@ public class StorageSession extends HttpSession {
     private void next() throws IOException {
 
         while (records.hasNext() && queueHead == null) {
-            byte[] chunk = buildChunk();
+            final byte[] chunk = buildChunk();
             write(chunk, 0, chunk.length);
         }
         if (!records.hasNext()) {
