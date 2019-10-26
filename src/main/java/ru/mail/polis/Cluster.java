@@ -16,6 +16,8 @@
 
 package ru.mail.polis;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.DAOFactory;
 import ru.mail.polis.service.Service;
@@ -23,6 +25,7 @@ import ru.mail.polis.service.ServiceFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -33,12 +36,13 @@ import java.util.Set;
  */
 public final class Cluster {
     private static final int[] PORTS = {8080, 8081, 8082};
+    private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     private Cluster() {
         // Not instantiable
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(final String[] args) throws IOException {
         // Fill the topology
         final Set<String> topology = new HashSet<>(3);
         for (final int port : PORTS) {
@@ -51,7 +55,7 @@ public final class Cluster {
             final File data = Files.createTempDirectory();
             final DAO dao = DAOFactory.create(data);
 
-            System.out.println("Starting node " + i + " on port " + port + " and data at " + data);
+            log.info("Starting node {} on port {} and data at {}", i, port, data);
 
             // Start the storage
             final Service storage =
