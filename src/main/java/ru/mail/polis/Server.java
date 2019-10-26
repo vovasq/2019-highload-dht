@@ -16,13 +16,14 @@
 
 package ru.mail.polis;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.Collections;
+
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.DAOFactory;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.ServiceFactory;
-
-import java.io.File;
-import java.io.IOException;
 
 /**
  * Starts storage and waits for shutdown.
@@ -39,12 +40,14 @@ public final class Server {
     public static void main(final String[] args) throws IOException {
         // Temporary storage in the file system
         final File data = Files.createTempDirectory();
+
         // Start the service
         final DAO dao = DAOFactory.create(data);
         final Service service =
                 ServiceFactory.create(
                         PORT,
-                        dao);
+                        dao,
+                        Collections.singleton("http://localhost:" + PORT));
         service.start();
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> {
