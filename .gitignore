@@ -18,3 +18,5 @@
 
 # ...even if they are in subdirectories
 !*/
+/src/main/java/ru/mail/polis/service/vovasq/BlockingService.java
+/src/main/java/ru/mail/polis/service/vovasq/AsyncService.java

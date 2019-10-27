@@ -94,52 +94,15 @@ public class NodeService extends HttpServer implements Service {
 
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
         final String primaryNode = topology.primaryFor(key);
-        log.info("Primary is " + primaryNode + "  me is " + port);
         if (!topology.isMe(primaryNode)) {
             asyncExecute(() -> {
-                try {
-                    session.sendResponse(proxy(primaryNode, request));
-                } catch (InterruptedException | PoolException | HttpException | IOException e) {
-                    Response response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
-                    try {
-                        session.sendResponse(response);
-                    } catch (IOException exc) {
-                        log.error("Error caused by: {}", exc);
-                    }
-                }
+                askAnotherNodeAndHandle(request,session, primaryNode);
             });
-            log.info("Byeeee ");
             return;
         }
-//        else {
         asyncExecute(() -> {
-            Response response;
-            try {
-                switch (request.getMethod()) {
-                    case Request.METHOD_GET:
-                        response = get(key);
-                        break;
-                    case Request.METHOD_PUT:
-                        response = upsert(key, request.getBody());
-                        break;
-                    case Request.METHOD_DELETE:
-                        response = remove(key);
-                        break;
-                    default:
-                        response = new Response(Response.BAD_REQUEST, Response.EMPTY);
-                        break;
-                }
-                log.info("Here we are");
-            } catch (IOException e) {
-                response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
-            }
-            try {
-                session.sendResponse(response);
-            } catch (IOException exc) {
-                log.error("Error caused by: {}", exc);
-            }
+            handleMyRequest(request,session,key);
         });
-//        }
     }
 
     private void entities(@NotNull final Request request, @NotNull final HttpSession session) throws IOException {
@@ -167,6 +130,62 @@ public class NodeService extends HttpServer implements Service {
 
     }
 
+    private void handleMyRequest(@NotNull final Request request, @NotNull final HttpSession session, @NotNull final ByteBuffer key) {
+        Response response;
+        try {
+            response = determineRequest(request, key);
+        } catch (IOException e) {
+            response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
+        }
+        try {
+            session.sendResponse(response);
+        } catch (IOException exc) {
+            log.error("Error caused by: ", exc);
+        }
+    }
+
+    private Response determineRequest(@NotNull final Request request, @NotNull final ByteBuffer key) throws IOException {
+        Response response;
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                response = get(key);
+                break;
+            case Request.METHOD_PUT:
+                response = upsert(key, request.getBody());
+                break;
+            case Request.METHOD_DELETE:
+                response = remove(key);
+                break;
+            default:
+                response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+                break;
+        }
+        return response;
+    }
+
+    private void askAnotherNodeAndHandle(@NotNull final Request request,
+                                         @NotNull final HttpSession session,
+                                         @NotNull final String primaryNode) {
+        try {
+            session.sendResponse(proxy(primaryNode, request));
+        } catch (InterruptedException | PoolException | HttpException | IOException e) {
+            Response response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
+            try {
+                session.sendResponse(response);
+            } catch (IOException exc) {
+                log.error("Error caused by: ", exc);
+            }
+        }
+    }
+
+    private Response proxy(@NotNull final String primaryNode, @NotNull final Request request) throws InterruptedException, IOException, HttpException, PoolException {
+        try {
+            return neighbours.get(primaryNode).invoke(request, 100);
+        } catch (InterruptedException | PoolException | HttpException | IOException e) {
+            throw e;
+        }
+    }
+
     private Response get(final ByteBuffer key) throws IOException {
         Response response;
         try {
@@ -186,14 +205,6 @@ public class NodeService extends HttpServer implements Service {
     private Response upsert(final ByteBuffer key, final byte[] body) throws IOException {
         dao.upsert(key, ByteBuffer.wrap(body));
         return new Response(Response.CREATED, Response.EMPTY);
-    }
-
-    private Response proxy(@NotNull final String primaryNode, @NotNull final Request request) throws InterruptedException, IOException, HttpException, PoolException {
-        try {
-            return neighbours.get(primaryNode).invoke(request, 100);
-        } catch (InterruptedException | PoolException | HttpException | IOException e) {
-            throw e;
-        }
     }
 
     private static HttpServerConfig getConfig(final int port, final int minNumOfWorkers, final int maxNumOfWorkers) {
