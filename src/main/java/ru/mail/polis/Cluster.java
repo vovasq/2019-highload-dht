@@ -44,7 +44,7 @@ public final class Cluster {
 
     public static void main(final String[] args) throws IOException {
         // Fill the topology
-        final Set<String> topology = new HashSet<>(3);
+        final Set<String> topology = new HashSet<>(PORTS.length);
         for (final int port : PORTS) {
             topology.add("http://localhost:" + port);
         }

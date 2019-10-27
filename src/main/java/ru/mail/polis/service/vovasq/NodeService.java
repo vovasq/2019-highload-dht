@@ -1,42 +1,58 @@
 package ru.mail.polis.service.vovasq;
 
 import com.google.common.base.Charsets;
+import one.nio.http.HttpClient;
+import one.nio.http.HttpException;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import one.nio.net.ConnectionString;
 import one.nio.net.Socket;
+import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
 import one.nio.server.RejectedSessionException;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static ru.mail.polis.util.Util.fromByteBufferToByteArray;
 
-
-public class AsyncService extends HttpServer implements Service {
+public class NodeService extends HttpServer implements Service {
 
 
     private final DAO dao;
-    private static final Log log = LogFactory.getLog(AsyncService.class);
+    private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+    private final Topology<String> topology;
+    private final Map<String, HttpClient> neighbours;
 
-
-    public AsyncService(final int port, final DAO dao,
-                        final int minNumOfWorkers,
-                        final int maxNumOfWorkers) throws IOException {
+    public NodeService(final int port, final DAO dao,
+                       final int minNumOfWorkers,
+                       final int maxNumOfWorkers,
+                       final Topology<String> topology) throws IOException {
         super(getConfig(port, minNumOfWorkers, maxNumOfWorkers));
         this.dao = dao;
+        this.topology = topology;
+        neighbours = new HashMap<>();
+        for (final String node : topology.all()) {
+            if (topology.isMe(node)) {
+                continue;
+            }
+            neighbours.put(node, new HttpClient(new ConnectionString(node)));
+        }
     }
 
 
@@ -75,7 +91,27 @@ public class AsyncService extends HttpServer implements Service {
             session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
+
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
+        final String primaryNode = topology.primaryFor(key);
+        log.info("Primary is " + primaryNode + "  me is " + port);
+        if (!topology.isMe(primaryNode)) {
+            asyncExecute(() -> {
+                try {
+                    session.sendResponse(proxy(primaryNode, request));
+                } catch (InterruptedException | PoolException | HttpException | IOException e) {
+                    Response response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
+                    try {
+                        session.sendResponse(response);
+                    } catch (IOException exc) {
+                        log.error("Error caused by: {}", exc);
+                    }
+                }
+            });
+            log.info("Byeeee ");
+            return;
+        }
+//        else {
         asyncExecute(() -> {
             Response response;
             try {
@@ -93,6 +129,7 @@ public class AsyncService extends HttpServer implements Service {
                         response = new Response(Response.BAD_REQUEST, Response.EMPTY);
                         break;
                 }
+                log.info("Here we are");
             } catch (IOException e) {
                 response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
             }
@@ -102,6 +139,7 @@ public class AsyncService extends HttpServer implements Service {
                 log.error("Error caused by: {}", exc);
             }
         });
+//        }
     }
 
     private void entities(@NotNull final Request request, @NotNull final HttpSession session) throws IOException {
@@ -150,6 +188,14 @@ public class AsyncService extends HttpServer implements Service {
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
+    private Response proxy(@NotNull final String primaryNode, @NotNull final Request request) throws InterruptedException, IOException, HttpException, PoolException {
+        try {
+            return neighbours.get(primaryNode).invoke(request, 100);
+        } catch (InterruptedException | PoolException | HttpException | IOException e) {
+            throw e;
+        }
+    }
+
     private static HttpServerConfig getConfig(final int port, final int minNumOfWorkers, final int maxNumOfWorkers) {
         if (port < 1024 || port > 65535) throw new IllegalArgumentException("Illegal port");
         final HttpServerConfig config = new HttpServerConfig();
@@ -161,4 +207,3 @@ public class AsyncService extends HttpServer implements Service {
         return config;
     }
 }
-

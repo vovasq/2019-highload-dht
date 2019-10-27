@@ -16,14 +16,14 @@
 
 package ru.mail.polis.service;
 
-import java.io.IOException;
-import java.util.Set;
-
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.service.vovasq.AsyncService;
+import ru.mail.polis.service.vovasq.BasicTopology;
+import ru.mail.polis.service.vovasq.NodeService;
+import ru.mail.polis.service.vovasq.Topology;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Constructs {@link Service} instances.
@@ -57,8 +57,10 @@ public final class ServiceFactory {
         if (port <= 0 || 65536 <= port) {
             throw new IllegalArgumentException("Port out of range");
         }
-        return new AsyncService(port, dao,
-                Runtime.getRuntime().availableProcessors(),
-                Runtime.getRuntime().availableProcessors());
+        final Topology<String> nodes = new BasicTopology(topology, "http://localhost:" + port);
+        return new NodeService(port, dao,
+                3,
+                4,
+                nodes);
     }
 }
