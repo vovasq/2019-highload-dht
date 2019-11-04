@@ -12,7 +12,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static ru.mail.polis.util.Util.fromByteBufferToByteArray;
+import static ru.mail.polis.util.ByteUtil.fromByteBufferToByteArray;
 
 public class StorageSession extends HttpSession {
 

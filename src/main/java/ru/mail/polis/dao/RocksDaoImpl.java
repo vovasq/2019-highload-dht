@@ -11,12 +11,14 @@ import ru.mail.polis.Record;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-import static ru.mail.polis.util.Util.fromByteBufferToByteArray;
+import static ru.mail.polis.util.ByteUtil.fromByteBufferToByteArray;
 
 public class RocksDaoImpl implements DAO {
+
     private RocksDB db;
 
     RocksDaoImpl(@NotNull final File data) throws IOException {
@@ -44,20 +46,21 @@ public class RocksDaoImpl implements DAO {
 
     @Override
     public void upsert(@NotNull final ByteBuffer key, @NotNull final ByteBuffer value) throws IOException {
-        final byte[] arrayKey = getKeyByteBuffer(key);
-        final byte[] arrayValue = fromByteBufferToByteArray(value);
-        try {
-            db.put(arrayKey, arrayValue);
-        } catch (RocksDBException e) {
-            throw new CustomDaoException(e.getMessage(), e);
-        }
+        upsertWrappedValue(key,new RocksValueWrapper(fromByteBufferToByteArray(value), System.currentTimeMillis(),false));
     }
 
     @Override
     public void remove(@NotNull final ByteBuffer key) throws IOException {
         final byte[] arrayKey = getKeyByteBuffer(key);
         try {
-            db.delete(arrayKey);
+            final byte[] rawValue = db.get(arrayKey);
+            if (rawValue != null) {
+                final RocksValueWrapper wrappedValue = new RocksValueWrapper(
+                        "".getBytes(Charset.defaultCharset()),
+                        System.currentTimeMillis(),
+                        true);
+                db.put(arrayKey, wrappedValue.getValue());
+            }
         } catch (RocksDBException e) {
             throw new CustomDaoException(e.getMessage(), e);
         }
@@ -71,16 +74,10 @@ public class RocksDaoImpl implements DAO {
     @NotNull
     @Override
     public ByteBuffer get(@NotNull final ByteBuffer key) throws IOException, NoSuchElementException {
-        final byte[] keyArray = getKeyByteBuffer(key);
-        try {
-            final byte[] valueByteArray = db.get(keyArray);
-            if (valueByteArray == null) {
-                throw new CustomNoSuchElementException("Key not found " + key.toString());
-            }
-            return ByteBuffer.wrap(valueByteArray);
-        } catch (RocksDBException e) {
-            throw new CustomDaoException(e.getMessage(), e);
-        }
+        RocksValueWrapper value = getWrappedValue(key);
+        if(value.isDeleted())
+            throw new CustomNoSuchElementException("key is not found");
+        return  ByteBuffer.wrap(value.getValue());
     }
 
     @Override
@@ -89,6 +86,34 @@ public class RocksDaoImpl implements DAO {
             db.compactRange();
         } catch (RocksDBException exception) {
             throw new CustomDaoException("Compact errxcor", exception);
+        }
+    }
+
+    @Override
+    public void upsertWrappedValue(@NotNull ByteBuffer key, @NotNull RocksValueWrapper value) throws IOException {
+        final byte[] arrayKey = getKeyByteBuffer(key);
+        final byte[] arrayValue = value.toBytes();
+        try {
+            db.put(arrayKey, arrayValue);
+        } catch (RocksDBException e) {
+            throw new CustomDaoException(e.getMessage(), e);
+        }
+
+    }
+
+    @NotNull
+    @Override
+    public RocksValueWrapper getWrappedValue(@NotNull ByteBuffer key) throws IOException, NoSuchElementException {
+        final byte[] keyArray = getKeyByteBuffer(key);
+        try {
+            final RocksValueWrapper wrappedValue = new RocksValueWrapper(db.get(keyArray));
+            final byte[] valueByteArray = wrappedValue.getValue();
+            if (valueByteArray == null) {
+                throw new CustomNoSuchElementException("Key not found " + key.toString());
+            }
+            return wrappedValue;
+        } catch (RocksDBException e) {
+            throw new CustomDaoException(e.getMessage(), e);
         }
     }
 
@@ -119,7 +144,7 @@ public class RocksDaoImpl implements DAO {
         public Record next() {
             if (currentRocksIter.isValid()) {
                 final ByteBuffer key = getKeyByteBuffer(currentRocksIter.key());
-                final ByteBuffer value = ByteBuffer.wrap(currentRocksIter.value());
+                final ByteBuffer value = ByteBuffer.wrap(new RocksValueWrapper(currentRocksIter.value()).getValue());
                 final Record res = Record.of(key, value);
                 currentRocksIter.next();
                 return res;

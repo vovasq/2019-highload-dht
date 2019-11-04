@@ -103,4 +103,24 @@ public interface DAO extends Closeable {
     default void compact() throws IOException {
         // Implement me when you get to stage 3
     }
+
+    /**
+     *  Upsert value with timestamp.
+     * @param key byte array key
+     * @param value wrapped value
+     * @throws IOException in case of any error
+     */
+    void upsertWrappedValue(@NotNull ByteBuffer key,
+                @NotNull RocksValueWrapper value) throws IOException;
+
+    /**
+     * Getter for wrapped with timestamp value.
+     * @param key byte array key
+     * @throws IOException in case of any error
+     * @throws NoSuchElementException in case of no such a value found
+     * @return wrapped value
+     */
+    @NotNull
+    RocksValueWrapper getWrappedValue(@NotNull ByteBuffer key) throws IOException, NoSuchElementException;
+
 }
