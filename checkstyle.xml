@@ -262,4 +262,5 @@
         </module>
         <module name="CommentsIndentation"/>
     </module>
+    <module name="NewlineAtEndOfFile"/>
 </module>
