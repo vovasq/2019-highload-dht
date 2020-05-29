@@ -58,12 +58,6 @@ public final class Iters {
         return new UntilIterator<>(iter, until);
     }
 
-    public static <E> Iterator<E> collapseEquals(
-            @NotNull final Iterator<E> iter,
-            @NotNull final Function<E, ?> byKey) {
-        return new CollapseEqualsIterator<>(iter, byKey);
-    }
-
     public static <E> Iterator<E> collapseEquals(@NotNull final Iterator<E> iter) {
         return new CollapseEqualsIterator<>(iter);
     }

@@ -4,15 +4,12 @@ import com.google.common.base.Charsets;
 import one.nio.http.HttpClient;
 import one.nio.http.HttpException;
 import one.nio.http.HttpServer;
-import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import one.nio.net.Socket;
 import one.nio.pool.PoolException;
-import one.nio.server.AcceptorConfig;
-import one.nio.server.RejectedSessionException;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +31,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static ru.mail.polis.service.vovasq.ServerUtils.getConfig;
 import static ru.mail.polis.util.Util.fromByteBufferToByteArray;
 
 public class NodeService extends HttpServer implements Service {
@@ -48,7 +46,6 @@ public class NodeService extends HttpServer implements Service {
     private final Replica defaultReplica;
     private final int size;
 
-
     public NodeService(final int port, final DAO dao,
                        final int minNumOfWorkers,
                        final int maxNumOfWorkers,
@@ -57,7 +54,7 @@ public class NodeService extends HttpServer implements Service {
         this.dao = (RocksDaoImpl) dao;
         this.topology = topology;
         this.neighbours = new HashMap<>();
-        this.size=topology.getAll().size();
+        this.size = topology.getAll().size();
         for (final String node : topology.getAll()) {
             if (topology.isMe(node)) {
                 continue;
@@ -87,7 +84,7 @@ public class NodeService extends HttpServer implements Service {
     }
 
     @Override
-    public HttpSession createSession(final Socket socket) throws RejectedSessionException {
+    public HttpSession createSession(final Socket socket) {
         return new StorageSession(socket, this);
     }
 
@@ -112,13 +109,11 @@ public class NodeService extends HttpServer implements Service {
         final String replicaParam = request.getParameter("replicas");
         final Replica newReplica = Replica.of(replicaParam, defaultReplica);
         if (newReplica.ack < 1 || newReplica.from < newReplica.ack || newReplica.from > size) {
-            session.sendError(Response.BAD_REQUEST, "Wrong replicas params from = " + newReplica.from + ", ack = " + newReplica.ack );
+            session.sendError(Response.BAD_REQUEST, "Wrong replicas params from = " + newReplica.from + ", ack = " + newReplica.ack);
         }
 
 
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
-        final String primaryNode = topology.primaryFor(key);
-        log.info("Primary is " + primaryNode + "  me is " + port);
         if (proxied || size > 1) {
             try {
                 switch (request.getMethod()) {
@@ -131,7 +126,7 @@ public class NodeService extends HttpServer implements Service {
                         break;
 
                     case Request.METHOD_DELETE:
-                        session.sendResponse(delete(proxied, newReplica.ack, id));
+                        session.sendResponse(remove(proxied, newReplica.ack, id));
                         break;
 
                     default:
@@ -144,15 +139,15 @@ public class NodeService extends HttpServer implements Service {
         } else {
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
-                    executeAsync(session, () -> get(id));
+                    executeAsync(session, () -> get(key));
                     break;
 
                 case Request.METHOD_PUT:
-                    executeAsync(session, () -> upsert(id, request.getBody()));
+                    executeAsync(session, () -> upsert(key, request.getBody()));
                     break;
 
                 case Request.METHOD_DELETE:
-                    executeAsync(session, () -> delete(id));
+                    executeAsync(session, () -> remove(key));
                     break;
 
                 default:
@@ -187,15 +182,15 @@ public class NodeService extends HttpServer implements Service {
 
     }
 
-    private Response get(@NotNull final String id) throws IOException {
+    private Response get(final ByteBuffer key) throws IOException {
+        Response response;
         try {
-            final ByteBuffer wrap = ByteBuffer.wrap(id.getBytes(Charset.defaultCharset()));
-            final ByteBuffer value = dao.get(wrap);
-            final byte[] bytes = RocksDaoImpl.getArrayByte(value);
-            return new Response(Response.OK, bytes);
+            final ByteBuffer value = dao.get(key);
+            response = new Response(Response.OK, fromByteBufferToByteArray(value));
         } catch (NoSuchElementException e) {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
+            response = new Response(Response.NOT_FOUND, "No such a key".getBytes(Charsets.UTF_8));
         }
+        return response;
     }
 
     private Response get(final boolean proxied, final Replica rf, final String id) throws IOException {
@@ -229,48 +224,8 @@ public class NodeService extends HttpServer implements Service {
         return ServerUtils.acksMoreThanRfAck(proxied, rf, nodes, acks, responses);
     }
 
-    private Response delete(@NotNull final String id) throws IOException {
-        dao.remove(ByteBuffer.wrap(id.getBytes(Charset.defaultCharset())));
-        return new Response(Response.ACCEPTED, Response.EMPTY);
-    }
-
-    private Response delete(final boolean proxied, final int ack, final String id) {
-        final ByteBuffer wrap = ByteBuffer.wrap(id.getBytes(Charset.defaultCharset()));
-        if (proxied) {
-            try {
-                dao.removeWithTimestamp(wrap);
-                return new Response(Response.ACCEPTED, Response.EMPTY);
-            } catch (IOException e) {
-                return new Response(Response.INTERNAL_ERROR, e.toString().getBytes(Charset.defaultCharset()));
-            }
-        }
-
-        final String[] nodes = ServerUtils.replicas(wrap, defaultReplica.from, topology);
-
-        int acks = 0;
-        for (final String node : nodes) {
-            try {
-                if (topology.isMe(node)) {
-                    dao.removeWithTimestamp(wrap);
-                    acks++;
-                } else {
-                    final Response response = neighbours.get(node).delete(ENTITY_ID + id, PROXY_HEADER);
-                    if (response.getStatus() == 202) {
-                        acks++;
-                    }
-                }
-            } catch (IOException | HttpException | PoolException | InterruptedException e) {
-                log.info("delete method", e);
-            }
-            if (acks >= ack) {
-                return new Response(Response.ACCEPTED, Response.EMPTY);
-            }
-        }
-        return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-    }
-
-    private Response upsert(@NotNull final String id, @NotNull final byte[] value) throws IOException {
-        dao.upsert(ByteBuffer.wrap(id.getBytes(Charset.defaultCharset())), ByteBuffer.wrap(value));
+    private Response upsert(final ByteBuffer key, final byte[] body) throws IOException {
+        dao.upsert(key, ByteBuffer.wrap(body));
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
@@ -310,49 +265,63 @@ public class NodeService extends HttpServer implements Service {
         }
     }
 
-    private Response get(final ByteBuffer key) throws IOException {
-        Response response;
-        try {
-            final ByteBuffer value = dao.get(key);
-            response = new Response(Response.OK, fromByteBufferToByteArray(value));
-        } catch (NoSuchElementException e) {
-            response = new Response(Response.NOT_FOUND, "No such a key".getBytes(Charsets.UTF_8));
-        }
-        return response;
-    }
-
     private Response remove(final ByteBuffer key) throws IOException {
         dao.remove(key);
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
-    private Response upsert(final ByteBuffer key, final byte[] body) throws IOException {
-        dao.upsert(key, ByteBuffer.wrap(body));
-        return new Response(Response.CREATED, Response.EMPTY);
-    }
-
-    private Response proxy(@NotNull final String primaryNode, @NotNull final Request request) throws InterruptedException, IOException, HttpException, PoolException {
-        try {
-            return neighbours.get(primaryNode).invoke(request, 100);
-        } catch (InterruptedException | PoolException | HttpException | IOException e) {
-            throw e;
+    private Response remove(final boolean proxied, final int ack, final String id) {
+        final ByteBuffer wrap = ByteBuffer.wrap(id.getBytes(Charset.defaultCharset()));
+        if (proxied) {
+            try {
+                dao.removeWithTimestamp(wrap);
+                return new Response(Response.ACCEPTED, Response.EMPTY);
+            } catch (IOException e) {
+                return new Response(Response.INTERNAL_ERROR, e.toString().getBytes(Charset.defaultCharset()));
+            }
         }
+
+        final String[] nodes = ServerUtils.replicas(wrap, defaultReplica.from, topology);
+
+        int acks = 0;
+        for (final String node : nodes) {
+            try {
+                if (topology.isMe(node)) {
+                    dao.removeWithTimestamp(wrap);
+                    acks++;
+                } else {
+                    final Response response = neighbours.get(node).delete(ENTITY_ID + id, PROXY_HEADER);
+                    if (response.getStatus() == 202) {
+                        acks++;
+                    }
+                }
+            } catch (IOException | HttpException | PoolException | InterruptedException e) {
+                log.info("delete method", e);
+            }
+            if (acks >= ack) {
+                return new Response(Response.ACCEPTED, Response.EMPTY);
+            }
+        }
+        return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
     }
 
-    private void executeAsync(@NotNull final HttpSession session, @NotNull final ServerUtils.Action action) {
-        asyncExecute(() ->
-            ServerUtils.execute(session, action, log)
-        );
+    @FunctionalInterface
+    private interface Action {
+        Response act() throws IOException;
     }
 
-    private static HttpServerConfig getConfig(final int port, final int minNumOfWorkers, final int maxNumOfWorkers) {
-        if (port < 1024 || port > 65535) throw new IllegalArgumentException("Illegal port");
-        final HttpServerConfig config = new HttpServerConfig();
-        final AcceptorConfig acceptorConfig = new AcceptorConfig();
-        acceptorConfig.port = port;
-        config.acceptors = new AcceptorConfig[]{acceptorConfig};
-        config.minWorkers = minNumOfWorkers;
-        config.maxWorkers = maxNumOfWorkers;
-        return config;
+    private void executeAsync(@NotNull final HttpSession session, @NotNull final Action action) {
+        asyncExecute(() -> {
+            try {
+                session.sendResponse(action.act());
+            } catch (IOException e) {
+                try {
+                    session.sendError(Response.INTERNAL_ERROR, e.getMessage());
+                } catch (IOException ex) {
+                    log.error(ex.getMessage());
+                }
+            }
+        });
     }
+
 }
