@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 public class BasicTopology implements Topology<String> {
@@ -35,7 +36,7 @@ public class BasicTopology implements Topology<String> {
 
     @NotNull
     @Override
-    public Set<String> all() {
-        return Set.of(nodes);
+    public List<String> getAll() {
+        return List.of(nodes);
     }
 }

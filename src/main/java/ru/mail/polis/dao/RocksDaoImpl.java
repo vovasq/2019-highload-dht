@@ -17,7 +17,7 @@ import java.util.NoSuchElementException;
 import static ru.mail.polis.util.Util.fromByteBufferToByteArray;
 
 public class RocksDaoImpl implements DAO {
-    private RocksDB db;
+    private final RocksDB db;
 
     RocksDaoImpl(@NotNull final File data) throws IOException {
         RocksDB.loadLibrary();
@@ -40,6 +40,53 @@ public class RocksDaoImpl implements DAO {
         final RocksIterator rocksIterator = db.newIterator();
         rocksIterator.seek(arrayFrom);
         return new RocksDbToRecordIterator(rocksIterator);
+    }
+
+    /**
+     * RocksDB upsert method with Timestamp.
+     *
+     * @param keys   - ByteBuffer
+     * @param values - ByteBuffer
+     * @throws IOException may be throw IOException
+     */
+    public void upsertWithTimestamp(final ByteBuffer keys, final ByteBuffer values) throws IOException {
+        try {
+            db.put(getKeyByteBuffer(keys),
+                    Timestamp.getPresentTimestamp(System.currentTimeMillis(), values).timestampToBytes());
+        } catch (RocksDBException e) {
+            throw new IOException("upsertWithTimestamp", e);
+        }
+    }
+
+    /**
+     * RocksDB get method with Timestamp.
+     *
+     * @param keys - ByteBuffer
+     * @return new Timestamp
+     * @throws IOException            may be throw IOException
+     * @throws NoSuchElementException may be throw NoSuchElementException
+     */
+    public Timestamp getWithTimestamp(final ByteBuffer keys) throws IOException, NoSuchElementException {
+        try {
+            return Timestamp.getTimestampFromBytes(db.get(getKeyByteBuffer(keys)));
+        } catch (RocksDBException e) {
+            throw new IOException("getWithTimestamp", e);
+        }
+    }
+
+    /**
+     * RocksDB remove method with Timestamp.
+     *
+     * @param key - ByteBuffer
+     * @throws IOException may be throw IOException
+     */
+    public void removeWithTimestamp(final ByteBuffer key) throws IOException {
+        try {
+            db.put(getKeyByteBuffer(key),
+                    Timestamp.getRemovedTimestamp(System.currentTimeMillis()).timestampToBytes());
+        } catch (RocksDBException e) {
+            throw new IOException("removeWithTimestamp", e);
+        }
     }
 
     @Override
@@ -90,6 +137,21 @@ public class RocksDaoImpl implements DAO {
         } catch (RocksDBException exception) {
             throw new CustomDaoException("Compact errxcor", exception);
         }
+    }
+
+    /**
+     * The method allows you to get an array of bytes from the ByteBuffer.
+     *
+     * @param buffer - ByteBuffer
+     * @return - array of bytes
+     */
+    public static byte[] getArrayByte(@NotNull final ByteBuffer buffer) {
+        final ByteBuffer duplicate = buffer.duplicate();
+        final byte[] body = new byte[duplicate.remaining()];
+
+        duplicate.get(body);
+
+        return body;
     }
 
     private byte[] getKeyByteBuffer(@NotNull final ByteBuffer byteBuffer) {

@@ -10,7 +10,7 @@ public final class Util {
     }
 
     /**
-     * function convert from ByteBuffer to byte array.
+     * function converts from ByteBuffer to byte array.
      * @param buffer argument to convert
      * @return byte array
      */

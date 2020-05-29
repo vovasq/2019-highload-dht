@@ -18,13 +18,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.dao.RocksDaoImpl;
+import ru.mail.polis.dao.Timestamp;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -33,26 +38,33 @@ import static ru.mail.polis.util.Util.fromByteBufferToByteArray;
 
 public class NodeService extends HttpServer implements Service {
 
-
-    private final DAO dao;
+    private static final String ENTITY_ID = "/v0/entity?id=";
+    private static final String PROXY_HEADER = "PROXY_HEADER";
     private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
+    private final RocksDaoImpl dao;
     private final Topology<String> topology;
     private final Map<String, HttpClient> neighbours;
+    private final Replica defaultReplica;
+    private final int size;
+
 
     public NodeService(final int port, final DAO dao,
                        final int minNumOfWorkers,
                        final int maxNumOfWorkers,
                        final Topology<String> topology) throws IOException {
         super(getConfig(port, minNumOfWorkers, maxNumOfWorkers));
-        this.dao = dao;
+        this.dao = (RocksDaoImpl) dao;
         this.topology = topology;
-        neighbours = new HashMap<>();
-        for (final String node : topology.all()) {
+        this.neighbours = new HashMap<>();
+        this.size=topology.getAll().size();
+        for (final String node : topology.getAll()) {
             if (topology.isMe(node)) {
                 continue;
             }
             neighbours.put(node, new HttpClient(new ConnectionString(node)));
         }
+        this.defaultReplica = new Replica(size / 2 + 1, size);
     }
 
 
@@ -92,54 +104,62 @@ public class NodeService extends HttpServer implements Service {
             return;
         }
 
+        boolean proxied = true;
+        if (request.getHeader(PROXY_HEADER) == null) {
+            proxied = false;
+        }
+
+        final String replicaParam = request.getParameter("replicas");
+        final Replica newReplica = Replica.of(replicaParam, defaultReplica);
+        if (newReplica.ack < 1 || newReplica.from < newReplica.ack || newReplica.from > size) {
+            session.sendError(Response.BAD_REQUEST, "Wrong replicas params from = " + newReplica.from + ", ack = " + newReplica.ack );
+        }
+
+
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
         final String primaryNode = topology.primaryFor(key);
         log.info("Primary is " + primaryNode + "  me is " + port);
-        if (!topology.isMe(primaryNode)) {
-            asyncExecute(() -> {
-                try {
-                    session.sendResponse(proxy(primaryNode, request));
-                } catch (InterruptedException | PoolException | HttpException | IOException e) {
-                    Response response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
-                    try {
-                        session.sendResponse(response);
-                    } catch (IOException exc) {
-                        log.error("Error caused by: {}", exc);
-                    }
-                }
-            });
-            log.info("Byeeee ");
-            return;
-        }
-//        else {
-        asyncExecute(() -> {
-            Response response;
+        if (proxied || size > 1) {
             try {
                 switch (request.getMethod()) {
                     case Request.METHOD_GET:
-                        response = get(key);
+                        session.sendResponse(get(proxied, newReplica, id));
                         break;
+
                     case Request.METHOD_PUT:
-                        response = upsert(key, request.getBody());
+                        session.sendResponse(upsert(proxied, request.getBody(), newReplica.ack, id));
                         break;
+
                     case Request.METHOD_DELETE:
-                        response = remove(key);
+                        session.sendResponse(delete(proxied, newReplica.ack, id));
                         break;
+
                     default:
-                        response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+                        session.sendError(Response.METHOD_NOT_ALLOWED, "Proxied wrong method");
                         break;
                 }
-                log.info("Here we are");
             } catch (IOException e) {
-                response = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
+                session.sendError(Response.GATEWAY_TIMEOUT, e.getMessage());
             }
-            try {
-                session.sendResponse(response);
-            } catch (IOException exc) {
-                log.error("Error caused by: {}", exc);
+        } else {
+            switch (request.getMethod()) {
+                case Request.METHOD_GET:
+                    executeAsync(session, () -> get(id));
+                    break;
+
+                case Request.METHOD_PUT:
+                    executeAsync(session, () -> upsert(id, request.getBody()));
+                    break;
+
+                case Request.METHOD_DELETE:
+                    executeAsync(session, () -> delete(id));
+                    break;
+
+                default:
+                    session.sendError(Response.METHOD_NOT_ALLOWED, "Non-proxied wrong method");
+                    break;
             }
-        });
-//        }
+        }
     }
 
     private void entities(@NotNull final Request request, @NotNull final HttpSession session) throws IOException {
@@ -165,6 +185,129 @@ public class NodeService extends HttpServer implements Service {
         }
 
 
+    }
+
+    private Response get(@NotNull final String id) throws IOException {
+        try {
+            final ByteBuffer wrap = ByteBuffer.wrap(id.getBytes(Charset.defaultCharset()));
+            final ByteBuffer value = dao.get(wrap);
+            final byte[] bytes = RocksDaoImpl.getArrayByte(value);
+            return new Response(Response.OK, bytes);
+        } catch (NoSuchElementException e) {
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
+        }
+    }
+
+    private Response get(final boolean proxied, final Replica rf, final String id) throws IOException {
+        final String[] nodes = ServerUtils.getNodes(proxied, rf, id, topology);
+        int acks = 0;
+        final List<Timestamp> responses = new ArrayList<>();
+        for (final String node : nodes) {
+            try {
+                Response response;
+                if (topology.isMe(node)) {
+                    final ByteBuffer byteBuffer = ByteBuffer.wrap(id.getBytes(Charset.defaultCharset()));
+                    final Timestamp timestamp = dao.getWithTimestamp(byteBuffer);
+                    if (timestamp.isAbsent()) {
+                        response = new Response(Response.NOT_FOUND, Response.EMPTY);
+                    } else {
+                        response = new Response(Response.OK, timestamp.timestampToBytes());
+                    }
+                } else {
+                    response = neighbours.get(node).get(ENTITY_ID + id, PROXY_HEADER);
+                }
+                if (response.getStatus() == 404 && response.getBody().length == 0) {
+                    responses.add(Timestamp.getAbsentTimestamp());
+                } else if (response.getStatus() != 500) {
+                    responses.add(Timestamp.getTimestampFromBytes(response.getBody()));
+                }
+                acks++;
+            } catch (IOException | HttpException | PoolException | InterruptedException e) {
+                log.info("get method", e);
+            }
+        }
+        return ServerUtils.acksMoreThanRfAck(proxied, rf, nodes, acks, responses);
+    }
+
+    private Response delete(@NotNull final String id) throws IOException {
+        dao.remove(ByteBuffer.wrap(id.getBytes(Charset.defaultCharset())));
+        return new Response(Response.ACCEPTED, Response.EMPTY);
+    }
+
+    private Response delete(final boolean proxied, final int ack, final String id) {
+        final ByteBuffer wrap = ByteBuffer.wrap(id.getBytes(Charset.defaultCharset()));
+        if (proxied) {
+            try {
+                dao.removeWithTimestamp(wrap);
+                return new Response(Response.ACCEPTED, Response.EMPTY);
+            } catch (IOException e) {
+                return new Response(Response.INTERNAL_ERROR, e.toString().getBytes(Charset.defaultCharset()));
+            }
+        }
+
+        final String[] nodes = ServerUtils.replicas(wrap, defaultReplica.from, topology);
+
+        int acks = 0;
+        for (final String node : nodes) {
+            try {
+                if (topology.isMe(node)) {
+                    dao.removeWithTimestamp(wrap);
+                    acks++;
+                } else {
+                    final Response response = neighbours.get(node).delete(ENTITY_ID + id, PROXY_HEADER);
+                    if (response.getStatus() == 202) {
+                        acks++;
+                    }
+                }
+            } catch (IOException | HttpException | PoolException | InterruptedException e) {
+                log.info("delete method", e);
+            }
+            if (acks >= ack) {
+                return new Response(Response.ACCEPTED, Response.EMPTY);
+            }
+        }
+        return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+    }
+
+    private Response upsert(@NotNull final String id, @NotNull final byte[] value) throws IOException {
+        dao.upsert(ByteBuffer.wrap(id.getBytes(Charset.defaultCharset())), ByteBuffer.wrap(value));
+        return new Response(Response.CREATED, Response.EMPTY);
+    }
+
+    private Response upsert(final boolean proxied, final byte[] value, final int ack, final String id) {
+        final ByteBuffer wrap = ByteBuffer.wrap(id.getBytes(Charset.defaultCharset()));
+        if (proxied) {
+            try {
+                dao.upsertWithTimestamp(wrap, ByteBuffer.wrap(value));
+                return new Response(Response.CREATED, Response.EMPTY);
+            } catch (IOException e) {
+                return new Response(Response.INTERNAL_ERROR, e.toString().getBytes(Charset.defaultCharset()));
+            }
+        }
+
+        final String[] nodes = ServerUtils.replicas(wrap, defaultReplica.from, topology);
+
+        int acks = 0;
+        for (final String node : nodes) {
+            try {
+                if (topology.isMe(node)) {
+                    dao.upsertWithTimestamp(wrap, ByteBuffer.wrap(value));
+                    acks++;
+                } else {
+                    final Response response = neighbours.get(node).put(ENTITY_ID + id, value, PROXY_HEADER);
+                    if (response.getStatus() == 201) {
+                        acks++;
+                    }
+                }
+            } catch (IOException | HttpException | PoolException | InterruptedException e) {
+                log.info("upsert method", e);
+            }
+        }
+        if (acks >= ack) {
+            return new Response(Response.CREATED, Response.EMPTY);
+        } else {
+            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+        }
     }
 
     private Response get(final ByteBuffer key) throws IOException {
@@ -194,6 +337,12 @@ public class NodeService extends HttpServer implements Service {
         } catch (InterruptedException | PoolException | HttpException | IOException e) {
             throw e;
         }
+    }
+
+    private void executeAsync(@NotNull final HttpSession session, @NotNull final ServerUtils.Action action) {
+        asyncExecute(() ->
+            ServerUtils.execute(session, action, log)
+        );
     }
 
     private static HttpServerConfig getConfig(final int port, final int minNumOfWorkers, final int maxNumOfWorkers) {
