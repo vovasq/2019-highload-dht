@@ -57,8 +57,8 @@ class SingleRangeTest extends TestBase {
         }
         client = new HttpClient(
                 new ConnectionString(
-                        "http://localhost:" + port +
-                                "?timeout=" + (TIMEOUT.toMillis() / 2)));
+                        "http://localhost:" + port
+                                + "?timeout=" + (TIMEOUT.toMillis() / 2)));
     }
 
     @NotNull
